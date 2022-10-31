@@ -94,11 +94,11 @@ venv.bak/
 .idea/
 
 # images
-.images/
-.newimages/
-.train/
-.test/
-.val/
+images/
+newimages/
+train/
+test/
+val/
 
 # model
 model.h5
