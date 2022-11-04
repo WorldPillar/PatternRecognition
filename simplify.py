@@ -2,26 +2,38 @@ import cv2
 import glob
 import os
 import shutil
+import math
 import numpy as np
 from pathlib import Path
 
 im_dir = 'images/'
-new_dir = 'newimages/'
+new_dir = 'modified_images/'
+image_width = 32
+image_height = 32
 
 
-def cropp(image):
-    ret, thresh = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY_INV)
+def create_directory(dir_name):
+    if os.path.exists(dir_name):
+        shutil.rmtree(dir_name)
+    os.makedirs(dir_name)
 
-    cnts, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    (xmin, ymin, hmax, wmax) = (278, 278, 0, 0)
-    for c in cnts:
-        x, y, w, h = cv2.boundingRect(c)
+def crop(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    ret, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_OTSU|cv2.THRESH_BINARY_INV)
+    rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3))
+    dilation = cv2.dilate(thresh, rect_kernel, iterations=1)
+    contours, hierarchy = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    (xmin, ymin, hmax, wmax) = (math.inf, math.inf, 0, 0)
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
         (xmin, ymin) = (min(x, xmin), min(y, ymin))
         (hmax, wmax) = (max(hmax, h + y), max(wmax, w + x))
 
     ROI = image[ymin:hmax, xmin:wmax]
-    ROI = cv2.resize(ROI, (64, 64))
+    ROI = cv2.resize(ROI, (image_width, image_height))
     return ROI
 
 
@@ -30,10 +42,9 @@ def simplify_image(image, letter) -> str:
     image = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     trans_mask = image[:, :, 3] == 0
     image[trans_mask] = [255, 255, 255, 255]
-    new_img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    new_img = cropp(new_img)
+    crop_img = crop(image)
     path = new_dir + letter + '/' + file_without_extension.split('\\')[2]
-    cv2.imwrite(path + '.jpeg', new_img)
+    cv2.imwrite(path + '.jpeg', crop_img)
     return path + '.jpeg'
 
 
@@ -42,7 +53,7 @@ def rotate(image):
     img = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     (h, w) = img.shape[:2]
     image_center = (w // 2, h // 2)
-    angels = (15, -15)
+    angels = (10, -10)
     for angle in angels:
         rotation_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
 
@@ -56,8 +67,7 @@ def rotate(image):
         rotation_mat[1, 2] += bound_h/2 - image_center[1]
 
         rotated = cv2.warpAffine(img, rotation_mat, (bound_w, bound_h), borderValue=(255, 255, 255))
-        cropped = cropp(rotated)
-        cropped = cv2.resize(cropped, (64, 64))
+        cropped = crop(rotated)
         cv2.imwrite(file_without_extension +
                     str(angle) + '.jpeg', cropped)
 
@@ -83,18 +93,16 @@ def balancing():
 
 
 def start() -> None:
-    if os.path.exists(new_dir):
-        shutil.rmtree(new_dir)
-    os.makedirs(new_dir)
+    create_directory(new_dir)
 
     i = 0
     for folder in glob.glob(f'{im_dir}*'):
-        letter = f'{i}'
-        i += 1
+        letter = '{0:06b}'.format(i)
         Path(f"{new_dir}{letter}").mkdir(parents=True, exist_ok=True)
         for image in glob.glob(f'{folder}/*.png'):
             new_path = simplify_image(image, letter)
             rotate(new_path)
+        i += 1
     balancing()
 
 

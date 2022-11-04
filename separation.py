@@ -2,7 +2,7 @@ import shutil
 import os
 import glob
 
-data_dir = 'newimages'
+data_dir = 'modified_images'
 train_dir = 'train'
 val_dir = 'val'
 test_dir = 'test'
@@ -11,7 +11,7 @@ test_data_portion = 0.20
 # Часть набора данных для проверки
 val_data_portion = 0.10
 # Количество элементов данных в одном классе
-nb_images = 1554
+nb_images = 666
 images_list = []
 
 
@@ -20,7 +20,8 @@ def create_directory(dir_name):
         shutil.rmtree(dir_name)
     os.makedirs(dir_name)
     for i in range(33):
-        os.makedirs(os.path.join(dir_name, f'{i}'))
+        letter = '{0:06b}'.format(i)
+        os.makedirs(os.path.join(dir_name, f'{letter}'))
 
 
 def get_images_list():

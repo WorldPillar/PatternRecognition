@@ -95,7 +95,8 @@ venv.bak/
 
 # images
 images/
-newimages/
+modified_images/
+my_images/
 train/
 test/
 val/
