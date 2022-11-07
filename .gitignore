@@ -96,8 +96,8 @@ venv.bak/
 # images
 images/
 modified_images/
-my_images/
-res_images/
+input_dataset/
+output_results/
 old_models/
 train/
 test/

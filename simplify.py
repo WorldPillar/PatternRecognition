@@ -25,8 +25,7 @@ def show_image(image):
 
 
 def crop(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    ret, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_OTSU|cv2.THRESH_BINARY_INV)
+    ret, thresh = cv2.threshold(image, 127, 255, cv2.THRESH_OTSU|cv2.THRESH_BINARY_INV)
     contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     (xmin, ymin, hmax, wmax) = (math.inf, math.inf, 0, 0)
@@ -35,14 +34,15 @@ def crop(image):
         (xmin, ymin) = (min(x, xmin), min(y, ymin))
         (hmax, wmax) = (max(hmax, h + y), max(wmax, w + x))
 
-    ROI = image[ymin:hmax, xmin:wmax]
+    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY)
+    ROI = thresh[ymin:hmax, xmin:wmax]
 
-    _, thresh = cv2.threshold(ROI, 127, 255, cv2.THRESH_BINARY_INV)
-    kernel = np.ones((2, 2), 'uint8')
-    erode = cv2.erode(thresh, kernel, iterations=1)
-    closing = cv2.morphologyEx(erode, cv2.MORPH_CLOSE, kernel)
-    _, thresh = cv2.threshold(closing, 127, 255, cv2.THRESH_BINARY_INV)
-
+    # _, thresh = cv2.threshold(ROI, 127, 255, cv2.THRESH_BINARY_INV)
+    # kernel = np.ones((3, 3), 'uint8')
+    # erode = cv2.erode(thresh, kernel, iterations=1)
+    # closing = cv2.morphologyEx(erode, cv2.MORPH_CLOSE, kernel)
+    # _, thresh = cv2.threshold(closing, 127, 255, cv2.THRESH_BINARY_INV)
     return ROI
 
 
@@ -58,7 +58,8 @@ def simplify_image(image) -> str:
     image = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     remove_alpha_channel(image)
 
-    crop_img = crop(image)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    crop_img = crop(gray)
     return crop_img
 
 
@@ -116,6 +117,7 @@ def start() -> None:
         Path(f"{new_dir}{letter}").mkdir(parents=True, exist_ok=True)
         for image in glob.glob(f'{folder}/*.png'):
             file_without_extension = image.split('.')[0]
+
             new_image = [simplify_image(image)]
             rotate_image = rotate(new_image[0])
             new_image = new_image + rotate_image

@@ -8,8 +8,8 @@ from tensorflow import keras
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 model = keras.models.load_model('model.h5')
-im_dir = 'my_images/'
-res_dir = 'res_images/'
+im_dir = 'input_dataset/'
+res_dir = 'output_results/'
 image_width = 32
 image_height = 32
 
@@ -67,7 +67,7 @@ def crop(image, one_letter):
 
 
 def get_image(path):
-    image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+    image = cv2.imread(path, cv2.COLOR_RGBA2RGB)
     if np.ndim(image) == 3:
         if np.size(image, 2) == 4:
             trans_mask = image[:, :, 3] == 0
