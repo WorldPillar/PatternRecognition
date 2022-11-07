@@ -5,6 +5,7 @@ import shutil
 import math
 import numpy as np
 from pathlib import Path
+import separation
 
 im_dir = 'images/'
 new_dir = 'modified_images/'
@@ -18,13 +19,15 @@ def create_directory(dir_name):
     os.makedirs(dir_name)
 
 
+def show_image(image):
+    cv2.imshow('show', image)
+    cv2.waitKey(0)
+
+
 def crop(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    ret, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_OTSU|cv2.THRESH_BINARY_INV)
-    rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3))
-    dilation = cv2.dilate(thresh, rect_kernel, iterations=1)
-    contours, hierarchy = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    ret, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_OTSU|cv2.THRESH_BINARY_INV)
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     (xmin, ymin, hmax, wmax) = (math.inf, math.inf, 0, 0)
     for cnt in contours:
@@ -33,27 +36,37 @@ def crop(image):
         (hmax, wmax) = (max(hmax, h + y), max(wmax, w + x))
 
     ROI = image[ymin:hmax, xmin:wmax]
-    ROI = cv2.resize(ROI, (image_width, image_height))
+
+    _, thresh = cv2.threshold(ROI, 127, 255, cv2.THRESH_BINARY_INV)
+    kernel = np.ones((2, 2), 'uint8')
+    erode = cv2.erode(thresh, kernel, iterations=1)
+    closing = cv2.morphologyEx(erode, cv2.MORPH_CLOSE, kernel)
+    _, thresh = cv2.threshold(closing, 127, 255, cv2.THRESH_BINARY_INV)
+
     return ROI
 
 
-def simplify_image(image, letter) -> str:
-    file_without_extension = image.split('.')[0]
+def remove_alpha_channel(image):
+    if np.ndim(image) == 3:
+        if np.size(image, 2) == 4:
+            trans_mask = image[:, :, 3] == 0
+            image[trans_mask] = [255, 255, 255, 255]
+    return image
+
+
+def simplify_image(image) -> str:
     image = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-    trans_mask = image[:, :, 3] == 0
-    image[trans_mask] = [255, 255, 255, 255]
+    remove_alpha_channel(image)
+
     crop_img = crop(image)
-    path = new_dir + letter + '/' + file_without_extension.split('\\')[2]
-    cv2.imwrite(path + '.jpeg', crop_img)
-    return path + '.jpeg'
+    return crop_img
 
 
 def rotate(image):
-    file_without_extension = image.split('.')[0]
-    img = cv2.imdecode(np.fromfile(image, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-    (h, w) = img.shape[:2]
+    (h, w) = image.shape[:2]
     image_center = (w // 2, h // 2)
-    angels = (10, -10)
+    angels = (5, -5, 10, -10)
+    rotate_image = []
     for angle in angels:
         rotation_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
 
@@ -66,10 +79,10 @@ def rotate(image):
         rotation_mat[0, 2] += bound_w/2 - image_center[0]
         rotation_mat[1, 2] += bound_h/2 - image_center[1]
 
-        rotated = cv2.warpAffine(img, rotation_mat, (bound_w, bound_h), borderValue=(255, 255, 255))
+        rotated = cv2.warpAffine(image, rotation_mat, (bound_w, bound_h), borderValue=(255, 255, 255))
         cropped = crop(rotated)
-        cv2.imwrite(file_without_extension +
-                    str(angle) + '.jpeg', cropped)
+        rotate_image.append(cropped)
+    return rotate_image
 
 
 def balancing():
@@ -90,6 +103,7 @@ def balancing():
                 break
             os.remove(i)
             d += 1
+    return min_value
 
 
 def start() -> None:
@@ -97,13 +111,24 @@ def start() -> None:
 
     i = 0
     for folder in glob.glob(f'{im_dir}*'):
+        print(folder)
         letter = '{0:06b}'.format(i)
         Path(f"{new_dir}{letter}").mkdir(parents=True, exist_ok=True)
         for image in glob.glob(f'{folder}/*.png'):
-            new_path = simplify_image(image, letter)
-            rotate(new_path)
+            file_without_extension = image.split('.')[0]
+            new_image = [simplify_image(image)]
+            rotate_image = rotate(new_image[0])
+            new_image = new_image + rotate_image
+            k = 0
+            for n_image in new_image:
+                path = new_dir + letter + '/' + file_without_extension.split('\\')[2] + f'{k}'
+                n_image = cv2.resize(n_image, (image_width, image_height))
+                cv2.imwrite(path + '.jpeg', n_image)
+                k += 1
         i += 1
-    balancing()
+    min_val = balancing()
+
+    separation.start(min_val)
 
 
 if __name__ == '__main__':

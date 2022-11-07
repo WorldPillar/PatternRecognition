@@ -97,6 +97,8 @@ venv.bak/
 images/
 modified_images/
 my_images/
+res_images/
+old_models/
 train/
 test/
 val/
